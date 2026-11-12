@@ -1,0 +1,56 @@
+AI Surveillance Car Using ESP32-CAM 🚗
+
+Project Overview
+
+An IoT-based surveillance car developed using the ESP32-CAM module. The system allows users to remotely control the vehicle through Wi-Fi and view live video from its onboard camera using a mobile browser.
+
+Key Features
+
+- Wireless car control through Wi-Fi.
+- Live video streaming using ESP32-CAM.
+- Mobile browser-based camera access.
+- Motor control using the L298N motor driver.
+- Compact, portable surveillance vehicle.
+
+Hardware Components
+
+- ESP32-CAM (AI Thinker)
+- OV2640 Camera
+- L298N Motor Driver
+- FTDI Programmer
+- DC Gear Motors
+- Wheels and Chassis
+- 3.7V Li-ion Batteries
+- 5V Buck Converter
+
+Technologies Used
+
+- Embedded C / Arduino IDE
+- ESP32
+- Wi-Fi Communication
+- IoT
+- Hardware Interfacing
+
+Working Principle
+
+The ESP32-CAM provides live camera streaming over Wi-Fi. The vehicle's motors are controlled through the L298N motor driver, allowing wireless movement. Users can access the camera stream through the ESP32-CAM's IP address using a mobile browser.
+
+Project Achievement
+
+🏆 First Prize – Technostav 2K26, conducted at our college.
+
+My Learning Outcomes
+
+- ESP32-CAM interfacing
+- Motor driver integration
+- Wireless communication
+- Embedded hardware connections
+- IoT-based project development
+
+Project Status
+
+Completed – 2026
+
+---
+
+An engineering project exploring the integration of embedded systems, wireless communication and real-time camera streaming. 
