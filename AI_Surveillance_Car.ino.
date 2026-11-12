@@ -1,0 +1,293 @@
+
+#include "esp_camera.h"
+#include <WiFi.h>
+#include <WebServer.h>
+
+// Wi-Fi credentials
+const char* ssid = "YOUR_WIFI_SSID";
+const char* password = "YOUR_WIFI_PASSWORD";
+
+// Motor driver pins
+#define IN1 12
+#define IN2 13
+#define IN3 14
+#define IN4 15
+
+WebServer controlServer(80);
+WiFiServer streamServer(81);
+
+// AI Thinker ESP32-CAM pin configuration
+#define PWDN_GPIO_NUM     32
+#define RESET_GPIO_NUM    -1
+#define XCLK_GPIO_NUM      0
+#define SIOD_GPIO_NUM     26
+#define SIOC_GPIO_NUM     27
+#define Y9_GPIO_NUM       35
+#define Y8_GPIO_NUM       34
+#define Y7_GPIO_NUM       39
+#define Y6_GPIO_NUM       36
+#define Y5_GPIO_NUM       21
+#define Y4_GPIO_NUM       19
+#define Y3_GPIO_NUM       18
+#define Y2_GPIO_NUM        5
+#define VSYNC_GPIO_NUM    25
+#define HREF_GPIO_NUM     23
+#define PCLK_GPIO_NUM     22
+
+// Motor control functions
+void stopMotors() {
+      digitalWrite(IN1, LOW);
+        digitalWrite(IN2, LOW);
+          digitalWrite(IN3, LOW);
+            digitalWrite(IN4, LOW);
+}
+
+void moveForward() {
+      digitalWrite(IN1, HIGH);
+        digitalWrite(IN2, LOW);
+          digitalWrite(IN3, HIGH);
+            digitalWrite(IN4, LOW);
+}
+Add ESP32-CAM surveillance car source code
+void moveBackward() {
+      digitalWrite(IN1, LOW);
+        digitalWrite(IN2, HIGH);
+          digitalWrite(IN3, LOW);
+            digitalWrite(IN4, HIGH);
+}
+
+void turnLeft() {
+      digitalWrite(IN1, LOW);
+        digitalWrite(IN2, HIGH);
+          digitalWrite(IN3, HIGH);
+            digitalWrite(IN4, LOW);
+}
+
+void turnRight() {
+      digitalWrite(IN1, HIGH);
+        digitalWrite(IN2, LOW);
+          digitalWrite(IN3, LOW);
+            digitalWrite(IN4, HIGH);
+}
+
+// Mobile control webpage
+void handleRoot() {
+      String html = R"rawliteral(
+          <!DOCTYPE html>
+            <html>
+              <head>
+                  <title>ESP32-CAM Surveillance Car</title>
+                      <meta name="viewport" content="width=device-width, initial-scale=1">
+                          <style>
+                                body {
+                                            background: #111;
+                                                    color: white;
+                                                            text-align: center;
+                                                                    font-family: Arial;
+                                }
+                                      img {
+                                                width: 95%;
+                                                        max-width: 480px;
+                                                                border: 2px solid white;
+                                      }
+                                            button {
+                                                        width: 90px;
+                                                                height: 55px;
+                                                                        margin: 5px;
+                                                                                font-size: 18px;
+                                                                                        border-radius: 10px;
+                                            }
+                                                </style>
+                                                  </head>
+                                                    <body>
+                                                        <h2>ESP32-CAM Surveillance Car</h2>
+                                                            <img src="http://__IP__:81/stream">
+                                                                <br><br>
+                                                                    <button onclick="move('F')">Forward</button><br>
+                                                                        <button onclick="move('L')">Left</button>
+                                                                            <button onclick="move('S')">Stop</button>
+                                                                                <button onclick="move('R')">Right</button><br>
+                                                                                    <button onclick="move('B')">Backward</button>
+
+                                                                                        <script>
+                                                                                              function move(direction) {
+                                                                                                        fetch('/control?move=' + direction);
+                                                                                              }
+                                                                                                  </script>
+                                                                                                    </body>
+                                                                                                      </html>
+      )rawliteral";
+
+        html.replace("__IP__", WiFi.localIP().toString());
+          controlServer.send(200, "text/html", html);
+}
+
+// Handle motor commands
+void handleControl() {
+      if (controlServer.hasArg("move")) {
+            String command = controlServer.arg("move");
+
+                if (command == "F") moveForward();
+                    else if (command == "B") moveBackward();
+                        else if (command == "L") turnLeft();
+                            else if (command == "R") turnRight();
+                                else stopMotors();
+      }
+
+        controlServer.send(200, "text/plain", "OK");
+}
+
+// Camera initialization
+bool startCamera() {
+      camera_config_t config = {};
+
+        config.ledc_channel = LEDC_CHANNEL_0;
+          config.ledc_timer = LEDC_TIMER_0;
+
+            config.pin_d0 = Y2_GPIO_NUM;
+              config.pin_d1 = Y3_GPIO_NUM;
+                config.pin_d2 = Y4_GPIO_NUM;
+                  config.pin_d3 = Y5_GPIO_NUM;
+                    config.pin_d4 = Y6_GPIO_NUM;
+                      config.pin_d5 = Y7_GPIO_NUM;
+                        config.pin_d6 = Y8_GPIO_NUM;
+                          config.pin_d7 = Y9_GPIO_NUM;
+
+                            config.pin_xclk = XCLK_GPIO_NUM;
+                              config.pin_pclk = PCLK_GPIO_NUM;
+                                config.pin_vsync = VSYNC_GPIO_NUM;
+                                  config.pin_href = HREF_GPIO_NUM;
+                                    config.pin_sccb_sda = SIOD_GPIO_NUM;
+                                      config.pin_sccb_scl = SIOC_GPIO_NUM;
+                                        config.pin_pwdn = PWDN_GPIO_NUM;
+                                          config.pin_reset = RESET_GPIO_NUM;
+
+                                            config.xclk_freq_hz = 20000000;
+                                              config.pixel_format = PIXFORMAT_JPEG;
+                                                config.frame_size = FRAMESIZE_QVGA;
+                                                  config.jpeg_quality = 12;
+                                                    config.fb_count = 1;
+
+                                                      esp_err_t result = esp_camera_init(&config);
+
+                                                        if (result != ESP_OK) {
+                                                                Serial.printf("Camera initialization failed: 0x%x\n", result);
+                                                                    return false;
+                                                        }
+
+                                                          Serial.println("Camera initialized successfully");
+                                                            return true;
+}
+
+// Send live camera stream
+void streamVideo(WiFiClient client) {
+      client.print(
+            "HTTP/1.1 200 OK\r\n"
+                "Content-Type: multipart/x-mixed-replace; boundary=frame\r\n"
+                    "Connection: close\r\n\r\n"
+      );
+
+        while (client.connected()) {
+                camera_fb_t* frame = esp_camera_fb_get();
+
+                    if (!frame) {
+                              Serial.println("Camera frame capture failed");
+                                    break;
+                    }
+
+                        client.print("--frame\r\n");
+                            client.print("Content-Type: image/jpeg\r\n");
+                                client.print("Content-Length: ");
+                                    client.print(frame->len);
+                                        client.print("\r\n\r\n");
+
+                                            client.write(frame->buf, frame->len);
+                                                client.print("\r\n");
+
+                                                    esp_camera_fb_return(frame);
+                                                        delay(30);
+        }
+
+          client.stop();
+}
+
+// Camera streaming task
+void streamTask(void* parameter) {
+      while (true) {
+            WiFiClient client = streamServer.available();
+
+                if (client) {
+                          unsigned long timeout = millis();
+
+                                while (client.connected() && !client.available()) {
+                                            if (millis() - timeout > 3000) {
+                                                          client.stop();
+                                                                    break;
+                                            }
+                                                    delay(1);
+                                }
+
+                                      if (client.connected()) {
+                                                while (client.available()) {
+                                                              client.read();
+                                                }
+                                                        streamVideo(client);
+                                      }
+                }
+
+                    delay(1);
+      }
+}
+
+void setup() {
+      Serial.begin(115200);
+
+        pinMode(IN1, OUTPUT);
+          pinMode(IN2, OUTPUT);
+            pinMode(IN3, OUTPUT);
+              pinMode(IN4, OUTPUT);
+                stopMotors();
+
+                  WiFi.mode(WIFI_STA);
+                    WiFi.begin(ssid, password);
+
+                      Serial.print("Connecting to Wi-Fi");
+
+                        while (WiFi.status() != WL_CONNECTED) {
+                                delay(500);
+                                    Serial.print(".");
+                        }
+
+                          Serial.println();
+                            Serial.println("Wi-Fi connected");
+                              Serial.print("IP Address: ");
+                                Serial.println(WiFi.localIP());
+
+                                  if (!startCamera()) {
+                                        Serial.println("Camera setup failed. Restarting...");
+                                            delay(3000);
+                                                ESP.restart();
+                                  }
+
+                                    controlServer.on("/", handleRoot);
+                                      controlServer.on("/control", handleControl);
+                                        controlServer.begin();
+
+                                          streamServer.begin();
+
+                                            xTaskCreatePinnedToCore(
+                                                    streamTask,
+                                                        "CameraStream",
+                                                            8192,
+                                                                NULL,
+                                                                    1,
+                                                                        NULL,
+                                                                            0
+                                            );
+
+                                              Serial.println("Surveillance car is ready");
+}
+
+void loop() {
+      controlServer.handleClient();
+}
